@@ -18,3 +18,4 @@ View your app in AI Studio: https://ai.studio/apps/5d5ac3c9-47dc-4211-a592-d5cbc
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+## Changing cargo insurance dari “shipment-based” → “package-level intelligence
