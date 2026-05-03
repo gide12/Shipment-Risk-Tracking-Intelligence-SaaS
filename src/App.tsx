@@ -1,10 +1,11 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Activity, AlertTriangle, Clock, MapPin, Navigation, Package, ShieldAlert, Truck, ChevronRight } from 'lucide-react';
+import { Activity, AlertTriangle, Clock, MapPin, Navigation, Package, ShieldAlert, Truck, Fuel, GitCommit, Cloud, CloudRain, CloudLightning, CloudSnow, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { GoogleGenAI, Type } from '@google/genai';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -30,12 +31,17 @@ type RiskData = {
   originLng: number;
   destLat: number;
   destLng: number;
+  weatherAnalysis: string;
+  primaryWeather: 'Sunny' | 'Rainy' | 'Stormy' | 'Cloudy' | 'Snowy' | 'Clear';
 };
 
 type EtaData = {
   normalEta: string;
   aiEta: string;
   reasoning: string;
+  estimatedDropPoints: number;
+  waitingDropTime: string;
+  gasPriceRecommendation: string;
 };
 
 // Component to dynamically fit Map bounds to markers
@@ -68,33 +74,86 @@ export default function App() {
     setRiskData(null);
     setEtaData(null);
 
-    const payload = {
-      origin, destination, carrier, estimatedDepartureTime: etd
-    };
-
     try {
-      // Parallel requests for speed
+      // Initialize Gemini directly on the frontend
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const riskPrompt = `Analyze the shipment risk for a ${carrier} delivery from ${origin} to ${destination} departing at ${etd}. 
+      Provide a realistic sounding analysis simulating factors like traffic congestion, weather, route complexity, and historical delay patterns for this specific route.
+      Determine a risk score from 0-100, where 0-30 is Low, 30-70 is Medium, and 70-100 is High.
+      Identify if there is a delay risk and provide an alert message if so.
+      Analyze the estimated weather conditions along the route. Provide a short weather analysis and classify the primary weather condition.
+      IMPORTANT: Also provide approximate realistic latitude and longitude coordinates for both the origin and destination to be used on a map.`;
+
+      const etaPrompt = `Calculate ETA for a ${carrier} shipment from ${origin} to ${destination} departing at ${etd}.
+      Provide the 'normal ETA' (ideal conditions) and the 'AI ETA' (adjusted for realistic weather, traffic, route complexity).
+      Format times like "5h 20m". Return the factors that caused the change.
+      Additionally, analyze if there are likely multiple drop points (intermediate stops) along this route. Estimate the number of drop points, and the total wait time due to these drops.
+      Finally, recommend the estimated gas price for this trip.`;
+
+      // Parallel generation requests
       const [riskRes, etaRes] = await Promise.all([
-        fetch('/api/shipment/risk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+        ai.models.generateContent({
+          model: "gemini-3.1-pro-preview",
+          contents: riskPrompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                score: { type: Type.INTEGER, description: "Risk score 0-100" },
+                riskLevel: { type: Type.STRING, description: "Low, Medium, or High" },
+                factors: { 
+                  type: Type.ARRAY, 
+                  items: { type: Type.STRING },
+                  description: "List of key risk factors (e.g., Heavy rain, Route complexity)"
+                },
+                delayAlert: {
+                  type: Type.STRING,
+                  description: "A short warning message if delayed, otherwise null or empty string."
+                },
+                originLat: { type: Type.NUMBER, description: "Latitude of origin exactly" },
+                originLng: { type: Type.NUMBER, description: "Longitude of origin exactly" },
+                destLat: { type: Type.NUMBER, description: "Latitude of destination exactly" },
+                destLng: { type: Type.NUMBER, description: "Longitude of destination exactly" },
+                weatherAnalysis: { type: Type.STRING, description: "Short description of estimated weather along the route" },
+                primaryWeather: { type: Type.STRING, description: "One of: Sunny, Rainy, Stormy, Cloudy, Snowy, Clear" }
+              },
+              required: ["score", "riskLevel", "factors", "delayAlert", "originLat", "originLng", "destLat", "destLng", "weatherAnalysis", "primaryWeather"],
+            }
+          }
         }),
-        fetch('/api/shipment/eta', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+        ai.models.generateContent({
+          model: "gemini-3.1-pro-preview",
+          contents: etaPrompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                normalEta: { type: Type.STRING, description: "Standard ETA e.g. '5h 20m'" },
+                aiEta: { type: Type.STRING, description: "Adjusted ETA e.g. '6h 10m'" },
+                reasoning: { type: Type.STRING, description: "Short explanation for the adjustment e.g. 'heavy traffic + rain'" },
+                estimatedDropPoints: { type: Type.INTEGER, description: "Estimated number of intermediate drop points" },
+                waitingDropTime: { type: Type.STRING, description: "Total estimated waiting time at drop points (e.g. '1h 30m')" },
+                gasPriceRecommendation: { type: Type.STRING, description: "Recommendation for gas cost (e.g. '$150-$200')" }
+              },
+              required: ["normalEta", "aiEta", "reasoning", "estimatedDropPoints", "waitingDropTime", "gasPriceRecommendation"],
+            }
+          }
         })
       ]);
 
-      const riskJson = await riskRes.json();
-      const etaJson = await etaRes.json();
+      if (riskRes.text) {
+        setRiskData(JSON.parse(riskRes.text));
+      }
+      if (etaRes.text) {
+        setEtaData(JSON.parse(etaRes.text));
+      }
 
-      setRiskData(riskJson);
-      setEtaData(etaJson);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to analyze shipment. Please check your inputs or try again later.');
+      alert('Failed to analyze shipment: ' + (err.message || 'Please check your inputs or try again later.'));
     } finally {
       setLoading(false);
     }
@@ -261,11 +320,11 @@ export default function App() {
             <motion.div 
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="absolute bottom-4 left-4 right-4 md:bottom-8 md:left-8 md:right-8 z-20 flex flex-col md:flex-row gap-4"
+              className="absolute bottom-4 left-4 right-4 md:bottom-8 md:left-8 md:right-8 z-20 flex flex-col md:flex-row flex-wrap gap-4"
             >
               
               {/* ETA Prediction Card */}
-              <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-5 shadow-xl flex-1 max-w-sm">
+              <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-5 shadow-xl flex-1 max-w-sm min-w-[280px]">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
                     <Clock className="w-4 h-4 text-blue-600" />
@@ -290,8 +349,41 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Trip Logistics Card */}
+              <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-5 shadow-xl flex-1 max-w-sm min-w-[280px]">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                    <Fuel className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <h3 className="font-semibold text-slate-800">Trip Logistics</h3>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <GitCommit className="w-4 h-4" />
+                      <span>Est. Drop Points</span>
+                    </div>
+                    <span className="text-sm font-medium text-slate-700 font-mono">{etaData.estimatedDropPoints} stops</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <Clock className="w-4 h-4" />
+                      <span>Wait Time</span>
+                    </div>
+                    <span className="text-sm font-medium text-slate-700 font-mono">{etaData.waitingDropTime}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-sm font-medium text-indigo-700">Gas Recommendation</span>
+                  </div>
+                  <div className="p-2.5 bg-slate-50/80 rounded-lg text-xs leading-relaxed text-slate-600 border border-slate-100">
+                    {etaData.gasPriceRecommendation}
+                  </div>
+                </div>
+              </div>
+
               {/* Risk Engine Card */}
-              <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-5 shadow-xl flex-1 max-w-md">
+              <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-5 shadow-xl flex-1 max-w-md min-w-[300px]">
                 <div className="flex items-center justify-between mb-4">
                    <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
@@ -314,6 +406,23 @@ export default function App() {
                   />
                 </div>
 
+                <div className="mb-4">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Weather Condition</h4>
+                  <div className="flex items-start gap-3 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                    <div className="mt-1">
+                      {riskData.primaryWeather === 'Sunny' || riskData.primaryWeather === 'Clear' ? <Sun className="w-5 h-5 text-amber-500" /> :
+                       riskData.primaryWeather === 'Rainy' ? <CloudRain className="w-5 h-5 text-blue-500" /> :
+                       riskData.primaryWeather === 'Stormy' ? <CloudLightning className="w-5 h-5 text-indigo-500" /> :
+                       riskData.primaryWeather === 'Snowy' ? <CloudSnow className="w-5 h-5 text-sky-400" /> :
+                       <Cloud className="w-5 h-5 text-slate-400" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700 mb-0.5">{riskData.primaryWeather}</p>
+                      <p className="text-xs text-slate-500 leading-snug">{riskData.weatherAnalysis}</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Identified Factors</h4>
                   <div className="flex flex-wrap gap-2">
@@ -328,7 +437,7 @@ export default function App() {
 
               {/* Alert Card - Only show if there's a delay alert */}
               {riskData.delayAlert && riskData.delayAlert.length > 2 && (
-                <div className="bg-red-50/95 backdrop-blur-md border border-red-200 rounded-2xl p-5 shadow-xl flex-1 max-w-sm flex flex-col justify-center relative overflow-hidden">
+                <div className="bg-red-50/95 backdrop-blur-md border border-red-200 rounded-2xl p-5 shadow-xl flex-1 max-w-sm min-w-[280px] flex flex-col justify-center relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />

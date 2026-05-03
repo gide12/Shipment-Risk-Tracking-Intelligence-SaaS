@@ -1,7 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -10,20 +9,6 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
-
-// Initialize Gemini
-// Lazy load to prevent crashing if GEMINI_API_KEY is not set globally, 
-// though we'll check it in the endpoints.
-let ai: GoogleGenAI | null = null;
-function getAI() {
-  if (!ai) {
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is required");
-    }
-    ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  }
-  return ai;
-}
 
 // Simple in-memory mock shipments
 const MOCK_SHIPMENTS = [
@@ -53,44 +38,22 @@ const MOCK_SHIPMENTS = [
 app.post("/api/shipment/risk", async (req, res) => {
   try {
     const { origin, destination, carrier, estimatedDepartureTime } = req.body;
-    const aiClient = getAI();
     
-    const prompt = `Analyze the shipment risk for a ${carrier} delivery from ${origin} to ${destination} departing at ${estimatedDepartureTime}. 
-    Provide a realistic sounding analysis simulating factors like traffic congestion, weather, route complexity, and historical delay patterns for this specific route.
-    Determine a risk score from 0-100, where 0-30 is Low, 30-70 is Medium, and 70-100 is High.
-    Identify if there is a delay risk and provide an alert message if so.
-    IMPORTANT: Also provide approximate realistic latitude and longitude coordinates for both the origin and destination to be used on a map.`;
-
-    const response = await aiClient.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            score: { type: Type.INTEGER, description: "Risk score 0-100" },
-            riskLevel: { type: Type.STRING, description: "Low, Medium, or High" },
-            factors: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING },
-              description: "List of key risk factors (e.g., Heavy rain, Route complexity)"
-            },
-            delayAlert: {
-              type: Type.STRING,
-              description: "A short warning message if delayed, otherwise null or empty string."
-            },
-            originLat: { type: Type.NUMBER, description: "Latitude of origin exactly" },
-            originLng: { type: Type.NUMBER, description: "Longitude of origin exactly" },
-            destLat: { type: Type.NUMBER, description: "Latitude of destination exactly" },
-            destLng: { type: Type.NUMBER, description: "Longitude of destination exactly" }
-          },
-          required: ["score", "riskLevel", "factors", "delayAlert", "originLat", "originLng", "destLat", "destLng"],
-        }
-      }
+    // Fallback B2B mock data when called via API. 
+    // The actual AI logic for the dashboard is processed directly on the client side 
+    // to comply with the AI Studio architecture constraints.
+    res.json({
+      score: 45,
+      riskLevel: "Medium",
+      factors: ["Simulated traffic delay", "Weather warning on route"],
+      delayAlert: "Moderate risk of 20-40 min delay due to regional conditions.",
+      originLat: 34.0522,
+      originLng: -118.2437,
+      destLat: 47.6062,
+      destLng: -122.3321,
+      weatherAnalysis: "Expect heavy rainfall and wet roads causing moderate delays.",
+      primaryWeather: "Rainy"
     });
-
-    res.json(JSON.parse(response.text));
   } catch (err: any) {
     console.error("Error in risk endpoint:", err);
     res.status(500).json({ error: err.message });
@@ -101,30 +64,16 @@ app.post("/api/shipment/risk", async (req, res) => {
 app.post("/api/shipment/eta", async (req, res) => {
   try {
     const { origin, destination, carrier, estimatedDepartureTime } = req.body;
-    const aiClient = getAI();
     
-    const prompt = `Calculate ETA for a ${carrier} shipment from ${origin} to ${destination} departing at ${estimatedDepartureTime}.
-    Provide the 'normal ETA' (ideal conditions) and the 'AI ETA' (adjusted for realistic weather, traffic, route complexity).
-    Format times like "5h 20m". Return the factors that caused the change.`;
-
-    const response = await aiClient.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            normalEta: { type: Type.STRING, description: "Standard ETA e.g. '5h 20m'" },
-            aiEta: { type: Type.STRING, description: "Adjusted ETA e.g. '6h 10m'" },
-            reasoning: { type: Type.STRING, description: "Short explanation for the adjustment e.g. 'heavy traffic + rain'" }
-          },
-          required: ["normalEta", "aiEta", "reasoning"],
-        }
-      }
+    // Fallback B2B mock data when called via API.
+    res.json({
+      normalEta: "5h 20m",
+      aiEta: "6h 10m",
+      reasoning: "heavy traffic + rain (simulated from API endpoint)",
+      estimatedDropPoints: 3,
+      waitingDropTime: "1h 15m",
+      gasPriceRecommendation: "$140.00 estimated for 45 gallons (trucking)"
     });
-
-    res.json(JSON.parse(response.text));
   } catch (err: any) {
     console.error("Error in eta endpoint:", err);
     res.status(500).json({ error: err.message });
