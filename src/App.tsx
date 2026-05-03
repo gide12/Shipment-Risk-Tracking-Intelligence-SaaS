@@ -36,6 +36,8 @@ type RiskData = {
   primaryRouteWaypoints: { lat: number, lng: number }[];
   alternativeRouteWaypoints: { lat: number, lng: number }[];
   alternativeRouteExplanation: string;
+  cargoRiskLevel: 'High' | 'Low';
+  cargoHandlingNotes: string;
 };
 
 type EtaData = {
@@ -64,6 +66,7 @@ export default function App() {
   const [destination, setDestination] = useState('');
   const [carrier, setCarrier] = useState('UPS');
   const [etd, setEtd] = useState('');
+  const [cargoDetails, setCargoDetails] = useState('');
   
   const [loading, setLoading] = useState(false);
   const [riskData, setRiskData] = useState<RiskData | null>(null);
@@ -82,10 +85,12 @@ export default function App() {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const riskPrompt = `Analyze the shipment risk for a ${carrier} delivery from ${origin} to ${destination} departing at ${etd}. 
+      Cargo details: ${cargoDetails || 'General freight'}.
       Provide a realistic sounding analysis simulating factors like traffic congestion, weather, route complexity, and historical delay patterns for this specific route.
-      Determine a risk score from 0-100, where 0-30 is Low, 30-70 is Medium, and 70-100 is High.
+      Determine a route risk score from 0-100, where 0-30 is Low, 30-70 is Medium, and 70-100 is High.
       Identify if there is a delay risk and provide an alert message if so.
       Analyze the estimated weather conditions along the route. Provide a short weather analysis and classify the primary weather condition.
+      Analyze the cargo risk: determine if the container/package is 'High' risk (e.g., toxic, flammable, sensitive, fragile) or 'Low' risk based on the cargo details. Provide handling notes.
       IMPORTANT: Also provide approximate realistic latitude and longitude coordinates for both the origin and destination to be used on a map.
       Provide 1-2 intermediate waypoints for the primary route, and 1-2 intermediate waypoints for an alternative route that avoids storms, big accidents, or heavy traffic. Explain why the alternative route is more efficient.`;
 
@@ -141,9 +146,17 @@ export default function App() {
                 alternativeRouteExplanation: {
                   type: Type.STRING,
                   description: "Explanation of why the alternative route is safer/more efficient"
+                },
+                cargoRiskLevel: {
+                  type: Type.STRING,
+                  description: "Cargo risk level: 'High' or 'Low'"
+                },
+                cargoHandlingNotes: {
+                  type: Type.STRING,
+                  description: "Notes on handling based on toxicity, flammability, fragility, etc."
                 }
               },
-              required: ["score", "riskLevel", "factors", "delayAlert", "originLat", "originLng", "destLat", "destLng", "weatherAnalysis", "primaryWeather", "primaryRouteWaypoints", "alternativeRouteWaypoints", "alternativeRouteExplanation"],
+              required: ["score", "riskLevel", "factors", "delayAlert", "originLat", "originLng", "destLat", "destLng", "weatherAnalysis", "primaryWeather", "primaryRouteWaypoints", "alternativeRouteWaypoints", "alternativeRouteExplanation", "cargoRiskLevel", "cargoHandlingNotes"],
             }
           }
         }),
@@ -264,6 +277,20 @@ export default function App() {
                 className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
                 value={etd}
                 onChange={e => setEtd(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Cargo Contents (Optional)</label>
+            <div className="relative">
+              <Package className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <input 
+                type="text" 
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
+                placeholder="e.g. Chemicals, Electronics, General..."
+                value={cargoDetails}
+                onChange={e => setCargoDetails(e.target.value)}
               />
             </div>
           </div>
@@ -444,6 +471,21 @@ export default function App() {
                     transition={{ duration: 1, ease: 'easeOut' }}
                     className={cn("h-full", riskGaugeColor)} 
                   />
+                </div>
+
+                <div className="mb-4">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Cargo Intelligence</h4>
+                  <div className={cn("p-3 rounded-lg border", riskData.cargoRiskLevel === 'High' ? 'bg-orange-50/50 border-orange-100' : 'bg-slate-50/80 border-slate-100')}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Package className={cn("w-4 h-4", riskData.cargoRiskLevel === 'High' ? 'text-orange-500' : 'text-slate-500')} />
+                      <span className={cn("text-sm font-semibold", riskData.cargoRiskLevel === 'High' ? 'text-orange-700' : 'text-slate-700')}>
+                        {riskData.cargoRiskLevel} Risk Cargo
+                      </span>
+                    </div>
+                    <p className={cn("text-xs leading-snug", riskData.cargoRiskLevel === 'High' ? 'text-orange-800/80' : 'text-slate-600')}>
+                      {riskData.cargoHandlingNotes}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="mb-4">

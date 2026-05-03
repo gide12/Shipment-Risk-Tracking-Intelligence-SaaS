@@ -55,7 +55,9 @@ app.post("/api/shipment/risk", async (req, res) => {
       primaryWeather: "Rainy",
       primaryRouteWaypoints: [{ lat: 40.0, lng: -120.0 }],
       alternativeRouteWaypoints: [{ lat: 41.0, lng: -116.0 }],
-      alternativeRouteExplanation: "Taking the eastern pass avoids the storm cell over the mountains, saving up to 45 minutes of delay."
+      alternativeRouteExplanation: "Taking the eastern pass avoids the storm cell over the mountains, saving up to 45 minutes of delay.",
+      cargoRiskLevel: "High",
+      cargoHandlingNotes: "Simulated toxic/flammable materials. Requires specialized handling and routing."
     });
   } catch (err: any) {
     console.error("Error in risk endpoint:", err);
