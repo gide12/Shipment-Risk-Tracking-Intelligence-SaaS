@@ -52,7 +52,10 @@ app.post("/api/shipment/risk", async (req, res) => {
       destLat: 47.6062,
       destLng: -122.3321,
       weatherAnalysis: "Expect heavy rainfall and wet roads causing moderate delays.",
-      primaryWeather: "Rainy"
+      primaryWeather: "Rainy",
+      primaryRouteWaypoints: [{ lat: 40.0, lng: -120.0 }],
+      alternativeRouteWaypoints: [{ lat: 41.0, lng: -116.0 }],
+      alternativeRouteExplanation: "Taking the eastern pass avoids the storm cell over the mountains, saving up to 45 minutes of delay."
     });
   } catch (err: any) {
     console.error("Error in risk endpoint:", err);

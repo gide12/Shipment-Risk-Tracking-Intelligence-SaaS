@@ -33,6 +33,9 @@ type RiskData = {
   destLng: number;
   weatherAnalysis: string;
   primaryWeather: 'Sunny' | 'Rainy' | 'Stormy' | 'Cloudy' | 'Snowy' | 'Clear';
+  primaryRouteWaypoints: { lat: number, lng: number }[];
+  alternativeRouteWaypoints: { lat: number, lng: number }[];
+  alternativeRouteExplanation: string;
 };
 
 type EtaData = {
@@ -83,7 +86,8 @@ export default function App() {
       Determine a risk score from 0-100, where 0-30 is Low, 30-70 is Medium, and 70-100 is High.
       Identify if there is a delay risk and provide an alert message if so.
       Analyze the estimated weather conditions along the route. Provide a short weather analysis and classify the primary weather condition.
-      IMPORTANT: Also provide approximate realistic latitude and longitude coordinates for both the origin and destination to be used on a map.`;
+      IMPORTANT: Also provide approximate realistic latitude and longitude coordinates for both the origin and destination to be used on a map.
+      Provide 1-2 intermediate waypoints for the primary route, and 1-2 intermediate waypoints for an alternative route that avoids storms, big accidents, or heavy traffic. Explain why the alternative route is more efficient.`;
 
       const etaPrompt = `Calculate ETA for a ${carrier} shipment from ${origin} to ${destination} departing at ${etd}.
       Provide the 'normal ETA' (ideal conditions) and the 'AI ETA' (adjusted for realistic weather, traffic, route complexity).
@@ -117,9 +121,29 @@ export default function App() {
                 destLat: { type: Type.NUMBER, description: "Latitude of destination exactly" },
                 destLng: { type: Type.NUMBER, description: "Longitude of destination exactly" },
                 weatherAnalysis: { type: Type.STRING, description: "Short description of estimated weather along the route" },
-                primaryWeather: { type: Type.STRING, description: "One of: Sunny, Rainy, Stormy, Cloudy, Snowy, Clear" }
+                primaryWeather: { type: Type.STRING, description: "One of: Sunny, Rainy, Stormy, Cloudy, Snowy, Clear" },
+                primaryRouteWaypoints: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: { lat: { type: Type.NUMBER }, lng: { type: Type.NUMBER } }
+                  },
+                  description: "1-2 intermediate waypoints for the main route"
+                },
+                alternativeRouteWaypoints: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: { lat: { type: Type.NUMBER }, lng: { type: Type.NUMBER } }
+                  },
+                  description: "1-2 intermediate waypoints for a safer alternative route avoiding storms/traffic"
+                },
+                alternativeRouteExplanation: {
+                  type: Type.STRING,
+                  description: "Explanation of why the alternative route is safer/more efficient"
+                }
               },
-              required: ["score", "riskLevel", "factors", "delayAlert", "originLat", "originLng", "destLat", "destLng", "weatherAnalysis", "primaryWeather"],
+              required: ["score", "riskLevel", "factors", "delayAlert", "originLat", "originLng", "destLat", "destLng", "weatherAnalysis", "primaryWeather", "primaryRouteWaypoints", "alternativeRouteWaypoints", "alternativeRouteExplanation"],
             }
           }
         }),
@@ -290,16 +314,32 @@ export default function App() {
                     dest={[riskData.destLat, riskData.destLng]} 
                   />
                   
+                  {/* Primary Route */}
                   <Polyline 
                     positions={[
                       [riskData.originLat, riskData.originLng],
+                      ...(riskData.primaryRouteWaypoints ? riskData.primaryRouteWaypoints.map(p => [p.lat, p.lng] as [number, number]) : []),
                       [riskData.destLat, riskData.destLng]
                     ]}
                     color="#3b82f6" 
-                    weight={3}
-                    dashArray="6, 8"
+                    weight={4}
                     opacity={0.8}
                   />
+
+                  {/* Alternative Route */}
+                  {riskData.alternativeRouteWaypoints && riskData.alternativeRouteWaypoints.length > 0 && (
+                    <Polyline 
+                      positions={[
+                        [riskData.originLat, riskData.originLng],
+                        ...riskData.alternativeRouteWaypoints.map(p => [p.lat, p.lng] as [number, number]),
+                        [riskData.destLat, riskData.destLng]
+                      ]}
+                      color="#10b981" 
+                      weight={3}
+                      dashArray="8, 8"
+                      opacity={0.9}
+                    />
+                  )}
 
                   <Marker position={[riskData.originLat, riskData.originLng]} icon={OriginIcon}>
                     <Popup className="text-sm font-medium">Origin</Popup>
@@ -422,6 +462,15 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {riskData.alternativeRouteExplanation && (
+                  <div className="mb-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Alternative Route (Green)</h4>
+                    <div className="p-3 bg-emerald-50/50 rounded-lg border border-emerald-100 text-xs text-slate-600 leading-snug">
+                      {riskData.alternativeRouteExplanation}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Identified Factors</h4>
