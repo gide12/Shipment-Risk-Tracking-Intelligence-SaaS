@@ -314,8 +314,8 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-[60vh] md:h-screen w-full relative">
-        <div className="absolute inset-0 z-0 bg-slate-100 flex items-center justify-center">
+      <main className="flex-1 flex flex-col h-full md:h-screen overflow-y-auto w-full relative bg-slate-50">
+        <div className={cn("relative w-full shrink-0 flex items-center justify-center bg-slate-100 transition-all duration-500", (riskData && etaData) ? "h-[50vh] md:h-[55vh] border-b border-slate-200" : "h-full")}>
           {(!riskData || !etaData) && !loading ? (
             <div className="text-center p-8 bg-white/60 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-sm max-w-sm">
               <Package className="w-12 h-12 text-blue-300 mx-auto mb-4" />
@@ -381,167 +381,171 @@ export default function App() {
           )}
         </div>
 
-        {/* Floating overlays */}
+        {/* Results Grid Below Map */}
         <AnimatePresence>
           {riskData && etaData && !loading && (
             <motion.div 
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="absolute bottom-4 left-4 right-4 md:bottom-8 md:left-8 md:right-8 z-20 flex flex-col md:flex-row flex-wrap gap-4"
+              className="p-6 md:p-8 flex-1"
             >
-              
-              {/* ETA Prediction Card */}
-              <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-5 shadow-xl flex-1 max-w-sm min-w-[280px]">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                    <Clock className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <h3 className="font-semibold text-slate-800">AI ETA Prediction</h3>
-                </div>
+              <div className="max-w-6xl mx-auto space-y-6">
                 
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <span className="text-sm text-slate-500">Standard ETA</span>
-                    <span className="text-sm font-medium text-slate-700 font-mono">{etaData.normalEta}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-blue-700">Adjusted ETA</span>
-                    <span className="text-lg font-bold text-blue-700 font-mono">{etaData.aiEta}</span>
-                  </div>
-                  {etaData.reasoning && (
-                    <div className="mt-3 p-2.5 bg-slate-50/80 rounded-lg text-xs leading-relaxed text-slate-600 border border-slate-100 italic">
-                      "{etaData.reasoning}"
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Trip Logistics Card */}
-              <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-5 shadow-xl flex-1 max-w-sm min-w-[280px]">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <Fuel className="w-4 h-4 text-indigo-600" />
-                  </div>
-                  <h3 className="font-semibold text-slate-800">Trip Logistics</h3>
-                </div>
-                
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                      <GitCommit className="w-4 h-4" />
-                      <span>Est. Drop Points</span>
-                    </div>
-                    <span className="text-sm font-medium text-slate-700 font-mono">{etaData.estimatedDropPoints} stops</span>
-                  </div>
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                      <Clock className="w-4 h-4" />
-                      <span>Wait Time</span>
-                    </div>
-                    <span className="text-sm font-medium text-slate-700 font-mono">{etaData.waitingDropTime}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-1">
-                    <span className="text-sm font-medium text-indigo-700">Gas Recommendation</span>
-                  </div>
-                  <div className="p-2.5 bg-slate-50/80 rounded-lg text-xs leading-relaxed text-slate-600 border border-slate-100">
-                    {etaData.gasPriceRecommendation}
-                  </div>
-                </div>
-              </div>
-
-              {/* Risk Engine Card */}
-              <div className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-5 shadow-xl flex-1 max-w-md min-w-[300px]">
-                <div className="flex items-center justify-between mb-4">
-                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                      <ShieldAlert className="w-4 h-4 text-slate-700" />
-                    </div>
-                    <h3 className="font-semibold text-slate-800">Risk Score Engine</h3>
-                   </div>
-                   <div className={cn("px-2.5 py-1 rounded-full text-xs font-bold border", scoreColor)}>
-                    {riskData.score} / 100 • {riskData.riskLevel}
-                   </div>
-                </div>
-
-                {/* Score Bar */}
-                <div className="w-full h-2 bg-slate-100 rounded-full mb-5 overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${riskData.score}%` }}
-                    transition={{ duration: 1, ease: 'easeOut' }}
-                    className={cn("h-full", riskGaugeColor)} 
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Cargo Intelligence</h4>
-                  <div className={cn("p-3 rounded-lg border", riskData.cargoRiskLevel === 'High' ? 'bg-orange-50/50 border-orange-100' : 'bg-slate-50/80 border-slate-100')}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Package className={cn("w-4 h-4", riskData.cargoRiskLevel === 'High' ? 'text-orange-500' : 'text-slate-500')} />
-                      <span className={cn("text-sm font-semibold", riskData.cargoRiskLevel === 'High' ? 'text-orange-700' : 'text-slate-700')}>
-                        {riskData.cargoRiskLevel} Risk Cargo
-                      </span>
-                    </div>
-                    <p className={cn("text-xs leading-snug", riskData.cargoRiskLevel === 'High' ? 'text-orange-800/80' : 'text-slate-600')}>
-                      {riskData.cargoHandlingNotes}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Weather Condition</h4>
-                  <div className="flex items-start gap-3 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
-                    <div className="mt-1">
-                      {riskData.primaryWeather === 'Sunny' || riskData.primaryWeather === 'Clear' ? <Sun className="w-5 h-5 text-amber-500" /> :
-                       riskData.primaryWeather === 'Rainy' ? <CloudRain className="w-5 h-5 text-blue-500" /> :
-                       riskData.primaryWeather === 'Stormy' ? <CloudLightning className="w-5 h-5 text-indigo-500" /> :
-                       riskData.primaryWeather === 'Snowy' ? <CloudSnow className="w-5 h-5 text-sky-400" /> :
-                       <Cloud className="w-5 h-5 text-slate-400" />}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-700 mb-0.5">{riskData.primaryWeather}</p>
-                      <p className="text-xs text-slate-500 leading-snug">{riskData.weatherAnalysis}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {riskData.alternativeRouteExplanation && (
-                  <div className="mb-4">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Alternative Route (Green)</h4>
-                    <div className="p-3 bg-emerald-50/50 rounded-lg border border-emerald-100 text-xs text-slate-600 leading-snug">
-                      {riskData.alternativeRouteExplanation}
+                {/* Alert Card - Show prominently at top if there's a delay alert */}
+                {riskData.delayAlert && riskData.delayAlert.length > 2 && (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold text-red-800 text-sm mb-1">Delay Alert!</h3>
+                        <p className="text-red-700 text-sm font-medium leading-tight">
+                          {riskData.delayAlert}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Identified Factors</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {riskData.factors.map((factor, i) => (
-                      <span key={i} className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs">
-                        {factor}
-                      </span>
-                    ))}
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
+                  
+                  {/* ETA Prediction Card */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <h3 className="font-semibold text-slate-800">AI ETA Prediction</h3>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <span className="text-sm text-slate-500">Standard ETA</span>
+                        <span className="text-sm font-medium text-slate-700 font-mono">{etaData.normalEta}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-blue-700">Adjusted ETA</span>
+                        <span className="text-lg font-bold text-blue-700 font-mono">{etaData.aiEta}</span>
+                      </div>
+                      {etaData.reasoning && (
+                        <div className="mt-3 p-3 bg-blue-50/50 rounded-lg text-xs leading-relaxed text-blue-800 border border-blue-100 italic">
+                          "{etaData.reasoning}"
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Alert Card - Only show if there's a delay alert */}
-              {riskData.delayAlert && riskData.delayAlert.length > 2 && (
-                <div className="bg-red-50/95 backdrop-blur-md border border-red-200 rounded-2xl p-5 shadow-xl flex-1 max-w-sm min-w-[280px] flex flex-col justify-center relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  {/* Trip Logistics Card */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <Fuel className="w-4 h-4 text-indigo-600" />
+                      </div>
+                      <h3 className="font-semibold text-slate-800">Trip Logistics</h3>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                          <GitCommit className="w-4 h-4" />
+                          <span>Est. Drop Points</span>
+                        </div>
+                        <span className="text-sm font-medium text-slate-700 font-mono">{etaData.estimatedDropPoints} stops</span>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                          <Clock className="w-4 h-4" />
+                          <span>Wait Time</span>
+                        </div>
+                        <span className="text-sm font-medium text-slate-700 font-mono">{etaData.waitingDropTime}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1">
+                        <span className="text-sm font-medium text-indigo-700">Gas Recommendation</span>
+                      </div>
+                      <div className="p-3 bg-slate-50/80 rounded-lg text-xs leading-relaxed text-slate-600 border border-slate-100">
+                        {etaData.gasPriceRecommendation}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Risk Engine Card */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm lg:col-span-2 xl:col-span-1">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                          <ShieldAlert className="w-4 h-4 text-slate-700" />
+                        </div>
+                        <h3 className="font-semibold text-slate-800">Risk Score</h3>
+                      </div>
+                      <div className={cn("px-2.5 py-1 rounded-full text-xs font-bold border", scoreColor)}>
+                        {riskData.score} / 100 • {riskData.riskLevel}
+                      </div>
+                    </div>
+
+                    {/* Score Bar */}
+                    <div className="w-full h-2 bg-slate-100 rounded-full mb-5 overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${riskData.score}%` }}
+                        transition={{ duration: 1, ease: 'easeOut' }}
+                        className={cn("h-full", riskGaugeColor)} 
+                      />
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Cargo Intelligence</h4>
+                      <div className={cn("p-3 rounded-lg border", riskData.cargoRiskLevel === 'High' ? 'bg-orange-50/50 border-orange-100' : 'bg-slate-50/80 border-slate-100')}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <Package className={cn("w-4 h-4", riskData.cargoRiskLevel === 'High' ? 'text-orange-500' : 'text-slate-500')} />
+                          <span className={cn("text-sm font-semibold", riskData.cargoRiskLevel === 'High' ? 'text-orange-700' : 'text-slate-700')}>
+                            {riskData.cargoRiskLevel} Risk Cargo
+                          </span>
+                        </div>
+                        <p className={cn("text-xs leading-snug", riskData.cargoRiskLevel === 'High' ? 'text-orange-800/80' : 'text-slate-600')}>
+                          {riskData.cargoHandlingNotes}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Weather Condition</h4>
+                      <div className="flex items-start gap-3 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                        <div className="mt-1">
+                          {riskData.primaryWeather === 'Sunny' || riskData.primaryWeather === 'Clear' ? <Sun className="w-5 h-5 text-amber-500" /> :
+                          riskData.primaryWeather === 'Rainy' ? <CloudRain className="w-5 h-5 text-blue-500" /> :
+                          riskData.primaryWeather === 'Stormy' ? <CloudLightning className="w-5 h-5 text-indigo-500" /> :
+                          riskData.primaryWeather === 'Snowy' ? <CloudSnow className="w-5 h-5 text-sky-400" /> :
+                          <Cloud className="w-5 h-5 text-slate-400" />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-slate-700 mb-0.5">{riskData.primaryWeather}</p>
+                          <p className="text-xs text-slate-500 leading-snug">{riskData.weatherAnalysis}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {riskData.alternativeRouteExplanation && (
+                      <div className="mb-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Alternative Route (Green)</h4>
+                        <div className="p-3 bg-emerald-50/50 rounded-lg border border-emerald-100 text-xs text-slate-600 leading-snug">
+                          {riskData.alternativeRouteExplanation}
+                        </div>
+                      </div>
+                    )}
+
                     <div>
-                      <h3 className="font-semibold text-red-800 text-sm mb-1">Delay Alert!</h3>
-                      <p className="text-red-700 text-sm font-medium leading-tight">
-                        {riskData.delayAlert}
-                      </p>
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Identified Factors</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {riskData.factors.map((factor, i) => (
+                          <span key={i} className="px-2 py-1 bg-slate-100 border border-slate-200 text-slate-600 rounded text-xs shadow-sm">
+                            {factor}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              )}
-
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
